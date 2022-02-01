@@ -27,7 +27,7 @@ Make sure the window you are trying to change is activated and press the appropr
 
 You can configure BORDERless with your own hotkeys:
 
-[Configuring BORDERless](/screenshot.png)
+![Configuring BORDERless](/screenshot.png)
 
 (The app can be interacted with from the system tray by clicking on its icon.)
 
