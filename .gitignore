@@ -1,0 +1,6 @@
+workspace.code-workspace
+compile_commands.json
+.vscode/
+*.exe
+*.res
+config
