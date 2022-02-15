@@ -1,8 +1,8 @@
-<p align="center"><img alt="BORDERless" src="/icon/icon256.png"/></p>
+<p align="center"><img alt="BORDERless" src="icon/icon256.png"/></p>
 <h1 align="center">BORDERless</h1>
 
 <!--
-![BORDERless](/icon/icon256.png)
+![BORDERless](icon/icon256.png)
 
 # BORDERless
 -->
@@ -17,7 +17,7 @@ On Windows 10 (8? 8.1? 11?), for whatever reason, some (legacy) fullscreen appli
 
 As a bonus feature, it now also has an ability to toggle window menus on and off. This is handy for achieving uniform look and feel in applications where fixed menu bar is annoying and/or undesirable, and cannot be turned off in settings: emulators, any dark mode (professional) applications with white menu bar stuck in them, etc.
 
-![Menu bar hidden in a dark mode app](/img/example.webp)
+![Menu bar hidden in a dark mode app](img/example.webp)
 
 *Note that BORDERless can only hide standard Windows menu bars. If an application has a custom menu implemented through some graphical interface toolkit, BORDERless wouldn’t be able to affect it.*
 
@@ -29,7 +29,7 @@ Make sure the window you are trying to change is activated and press the appropr
 
 It is possible to configure your own hotkeys:
 
-![Configuring BORDERless](/img/configure.png)
+![Configuring BORDERless](img/configure.png)
 
 (The app can be interacted with from the system tray by clicking on its icon.)
 
