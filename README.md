@@ -35,7 +35,7 @@ It is possible to configure your own hotkeys:
 
 Run `install.bat` to create the Start Menu shortcut for easy access to BORDERless.
 
-No bloat: BORDERless is written in pure C / WinAPI and consumes bare minimum of system resources (around megabyte of RAM). So you can safely let it running in background.
+No bloat: BORDERless is written in pure C / WinAPI and consumes bare minimum of system resources (around a megabyte of RAM). So you can safely let it running in background.
 
 *Note: some windows require you to <kbd>Alt-Tab</kbd> away and back to them after applying the fix in order to actually see the effect. That’s because Windows doesn’t bother to repaint them immediately. Doh.*
 
