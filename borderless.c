@@ -1078,6 +1078,7 @@ failure:
       }
       break;
     case WM_RBUTTONUP:
+      SetForegroundWindow (wnd);
       popup_show (wnd, menu_popup, NULL);
       PostMessageW (wnd, WM_APP + 1, 0, 0);
       break;
