@@ -16,16 +16,37 @@ AlignEscapedNewlinesLeft: true
 AlignOperands: false
 AlignTrailingComments: true
 AllowAllParametersOfDeclarationOnNextLine: false
-AllowShortBlocksOnASingleLine: false
+AllowShortBlocksOnASingleLine: Empty
 AllowShortCaseLabelsOnASingleLine: true
-AllowShortFunctionsOnASingleLine: false
-AllowShortIfStatementsOnASingleLine: false
-AllowShortLoopsOnASingleLine: false
+AllowShortEnumsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLambdasOnASingleLine: Inline
+AllowShortLoopsOnASingleLine: true
 AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: false
 BinPackParameters: false
 BreakBeforeBinaryOperators: false
-BreakBeforeBraces: Attach
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass:     false
+  AfterControlStatement: Never
+  AfterEnum:      false
+  AfterFunction:  true
+  AfterNamespace: false
+  AfterObjCDeclaration: false
+  AfterStruct:    false
+  AfterUnion:     false
+  AfterExternBlock: false
+  BeforeCatch:    false
+  BeforeElse:     false
+  BeforeLambdaBody: false
+  BeforeWhile:    false
+  IndentBraces:   false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
 BreakBeforeTernaryOperators: false
 BreakConstructorInitializersBeforeComma: false
 ColumnLimit: 80
@@ -33,7 +54,7 @@ CommentPragmas: ''
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 ConstructorInitializerIndentWidth: 0
 ContinuationIndentWidth: 0
-Cpp11BracedListStyle: false
+Cpp11BracedListStyle: true
 DerivePointerBinding: false
 IndentCaseLabels: false
 IndentFunctionDeclarationAfterType: false
@@ -49,7 +70,7 @@ PenaltyExcessCharacter: 1
 PenaltyReturnTypeOnItsOwnLine: 20
 SpaceAfterCStyleCast: false
 SpaceBeforeAssignmentOperators: true
-SpaceBeforeParens: Always
+SpaceBeforeParens: NonEmptyParentheses
 SpaceInEmptyParentheses: false
 SpacesBeforeTrailingComments: 1
 SpacesInAngles: false
