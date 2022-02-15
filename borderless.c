@@ -3,25 +3,20 @@
 //
 // Hide (and restore) window borders and/or menu bar.
 //
-// Some (legacy) applications display a horrible ugly border
-// in full screen mode on Windows 10 (8? 8.1?). The main purpose
+// Some (legacy) applications display horrible ugly borders
+// in full screen mode on Windows 10 (8? 8.1? 11?). The main purpose
 // of this little utility is to toggle these borders off individually
-// for each window using custom masks and restore back, if needed.
+// for each window using a custom mask and restore back, if needed.
 // The effect can be applied to regular windows too, but results
-// sometimes can be unpredictable, depending on masks used.
+// sometimes can be unpredictable, depending on mask used.
 //
 // As a bonus feature it can also toggle on/off regular
-// window menu bars. This is handy for achieving certain
+// window menu bars. This is handy for achieving uniform
 // look and feel in applications where fixed menu bar
 // is annoying and/or undesirable.
 //
 // https://buymeacoff.ee/ubihazard
 // -------------------------------------------------------------------------- */
-
-#ifndef _WIN32_WINNT
-/* Enable Windows 7 features */
-#define _WIN32_WINNT 0x0601
-#endif
 
 #ifndef UNICODE
 /* Enable Unicode in WinAPI */
@@ -33,26 +28,30 @@
 #define _UNICODE
 #endif
 
+#ifndef _WIN32_WINNT
+/* Enable Windows 7 features */
+#define _WIN32_WINNT 0x0601
+#endif
+
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
+#endif
 
 #include <Windows.h>
-#include <wchar.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <assert.h>
+#include <wchar.h>
 
 /* -------------------------------------------------------------------------- */
 
-#define APP_ID L"1710edcb-f650-41c4-9bbb-e1741e68aadd"
-#define APP_CLASSNAME L"BORDERLESS"
-#define APP_TITLE L"BORDERless"
-#define APP_VERSION L"1.0"
-
 /* C array */
-#define carrsize(arr) (sizeof(arr) / sizeof(arr[0]))
+#define numof(arr) (sizeof(arr) / sizeof(arr[0]))
+#define arrnew(type, num) malloc ((num) * sizeof(type))
 #define arrsize(arr, num) ((num) * sizeof((arr)[0]))
-#define arrresize(arr, num) realloc (arr, arrsize (arr, num))
+#define arrnewsize(arr, num) realloc (arr, arrsize (arr, num))
 #define arrcopy(dst, src, num) memcpy (dst, src, arrsize (dst, num))
 #define arrmove(dst, src, num) memmove (dst, src, arrsize (dst, num))
 #define arrzero(arr, num) memset (arr, 0, arrsize (arr, num))
@@ -79,31 +78,10 @@ static GetDpiForMonitor_fn* GetDpiForMonitor;
 
 /* -------------------------------------------------------------------------- */
 
-static const wchar_t hkey_str_off[]    = L"Off+";
-static const wchar_t hkey_str_ctrl[]   = L"Ctrl+";
-static const wchar_t hkey_str_alt[]    = L"Alt+";
-static const wchar_t hkey_str_shift[]  = L"Shift+";
-static const wchar_t hkey_str_win[]    = L"Win+";
-static const wchar_t hkey_str_ins[]    = L"Insert";
-static const wchar_t hkey_str_del[]    = L"Delete";
-static const wchar_t hkey_str_home[]   = L"Home";
-static const wchar_t hkey_str_end[]    = L"End";
-static const wchar_t hkey_str_pgup[]   = L"PageUp";
-static const wchar_t hkey_str_pgdn[]   = L"PageDown";
-static const wchar_t hkey_str_num[]    = L"Num";
-static const wchar_t hkey_str_div[]    = L"Divide";
-static const wchar_t hkey_str_mul[]    = L"Multiply";
-static const wchar_t hkey_str_sub[]    = L"Subtract";
-static const wchar_t hkey_str_add[]    = L"Add";
-static const wchar_t hkey_str_dec[]    = L"Decimal";
-static const wchar_t hkey_str_left[]   = L"Left";
-static const wchar_t hkey_str_up[]     = L"Up";
-static const wchar_t hkey_str_right[]  = L"Right";
-static const wchar_t hkey_str_down[]   = L"Down";
-static const wchar_t hkey_str_tab[]    = L"Tab";
-static const wchar_t hkey_str_bckspc[] = L"Backspace";
-
-/* -------------------------------------------------------------------------- */
+#define APP_ID L"1710edcb-f650-41c4-9bbb-e1741e68aadd"
+#define APP_CLASSNAME L"BORDERLESS"
+#define APP_TITLE L"BORDERless"
+#define APP_VERSION L"1.0"
 
 static HINSTANCE app_instance;
 static HMODULE lib_shcore;
@@ -182,6 +160,11 @@ static bool is_windows81 (void)
   return false;
 }
 
+static void shell_run (const wchar_t* const cmd)
+{
+  ShellExecuteW (NULL, L"open", cmd, NULL, NULL, SW_NORMAL);
+}
+
 /* -----------------------------------------------------------------------------
 // Hide border */
 
@@ -224,7 +207,7 @@ static bool remove_border (const HWND wnd)
   }
 
   if (hide) {
-    void* const newptr = arrresize (border_store, border_store_size + 1);
+    void* const newptr = arrnewsize (border_store, border_store_size + 1);
     if (newptr == NULL) return false;
     border_store = newptr;
     border_store[border_store_size++] = (struct border_store_item){
@@ -242,7 +225,7 @@ static bool remove_border (const HWND wnd)
     repaint_window (wnd);
 
     arrmove (runner, runner + 1, (border_store_size - (runner + 1 - border_store)));
-    void* const newptr = arrresize (border_store, --border_store_size);
+    void* const newptr = arrnewsize (border_store, --border_store_size);
     if (newptr != NULL) border_store = newptr;
   }
 
@@ -298,7 +281,7 @@ static bool remove_menu (const HWND wnd)
   if (hide) {
     HMENU const menu = GetMenu (wnd);
     if (menu != NULL) {
-      void* const newptr = arrresize (menu_store, menu_store_size + 1);
+      void* const newptr = arrnewsize (menu_store, menu_store_size + 1);
       if (newptr == NULL) return false;
       menu_store = newptr;
       menu_store[menu_store_size++] = (struct menu_store_item){
@@ -310,7 +293,7 @@ static bool remove_menu (const HWND wnd)
   } else {
     SetMenu (wnd, runner->menu);
     arrmove (runner, runner + 1, (menu_store_size - (runner + 1 - menu_store)));
-    void* const newptr = arrresize (menu_store, --menu_store_size);
+    void* const newptr = arrnewsize (menu_store, --menu_store_size);
     if (newptr != NULL) menu_store = newptr;
   }
 
@@ -319,6 +302,32 @@ static bool remove_menu (const HWND wnd)
 
 /* -----------------------------------------------------------------------------
 // Hotkey */
+
+static const wchar_t hkey_str_off[]    = L"Off+";
+static const wchar_t hkey_str_ctrl[]   = L"Ctrl+";
+static const wchar_t hkey_str_alt[]    = L"Alt+";
+static const wchar_t hkey_str_shift[]  = L"Shift+";
+static const wchar_t hkey_str_win[]    = L"Win+";
+static const wchar_t hkey_str_ins[]    = L"Insert";
+static const wchar_t hkey_str_del[]    = L"Delete";
+static const wchar_t hkey_str_home[]   = L"Home";
+static const wchar_t hkey_str_end[]    = L"End";
+static const wchar_t hkey_str_pgup[]   = L"PageUp";
+static const wchar_t hkey_str_pgdn[]   = L"PageDown";
+static const wchar_t hkey_str_num[]    = L"Num";
+static const wchar_t hkey_str_div[]    = L"Divide";
+static const wchar_t hkey_str_mul[]    = L"Multiply";
+static const wchar_t hkey_str_sub[]    = L"Subtract";
+static const wchar_t hkey_str_add[]    = L"Add";
+static const wchar_t hkey_str_dec[]    = L"Decimal";
+static const wchar_t hkey_str_left[]   = L"Left";
+static const wchar_t hkey_str_up[]     = L"Up";
+static const wchar_t hkey_str_right[]  = L"Right";
+static const wchar_t hkey_str_down[]   = L"Down";
+static const wchar_t hkey_str_tab[]    = L"Tab";
+static const wchar_t hkey_str_bckspc[] = L"Backspace";
+
+/* -------------------------------------------------------------------------- */
 
 struct hotkey {
   /* Currently set state */
@@ -358,8 +367,6 @@ struct hotkey hkey_menu_def = (struct hotkey){
   .ctrl = false, .alt = true, .shift = false, .win = false,
   .code = 'M', .id = 1
 };
-
-/* -------------------------------------------------------------------------- */
 
 static inline void hotkey_save (struct hotkey* const hkey)
 {
@@ -621,7 +628,7 @@ static bool parse_hotkey (const wchar_t** const str, struct hotkey* const hkey
 #define hkeychar2(s, c1, c2, vk) if (s[0] == c1 || s[0] == c2) {if (hkey->code) {str[0] = s; return false;} hkey->code = vk; ++s; continue;}
 #define hkeycharaz(s) if (iswalphab (s[0] | 0x20)) {if (hkey->code) {str[0] = s; return false;} hkey->code = s[0] & ~0x20; ++s; continue;}
 #define hkeychar09(s) if (iswdigit09 (s[0])) {if (hkey->code) {str[0] = s; return false;} hkey->code = s[0]; ++s; continue;}
-#define hkeyfunc(s) if ((s[0] | 0x20) == 'f' && iswdigit19 (s[1])) {if (hkey->code) {str[0] = s; return false;} int c = s[1] - '0'; if (iswdigit09 (s[2])) c = c * 10 + s[2] - '0'; hkey->code = VK_F1 - 1 + c; s += 2 + c > 9; continue;}
+#define hkeyfunc(s) if ((s[0] | 0x20) == 'f' && iswdigit19 (s[1])) {if (hkey->code) {str[0] = s; return false;} int c = s[1] - '0'; if (iswdigit09 (s[2])) c = c * 10 + s[2] - '0'; if (c > 24) {str[0] = s; return false;} hkey->code = VK_F1 - 1 + c; s += 2 + c > 9; continue;}
   objzero (hkey);
   hkey->id = id;
   const wchar_t* s = str[0];
@@ -690,7 +697,7 @@ static bool parse_hotkey (const wchar_t** const str, struct hotkey* const hkey
 static bool read_config (const wchar_t* const path)
 {
 #define read_line(line) do {\
-  if (fgetws (line, carrsize(line), f) == NULL) {\
+  if (fgetws (line, numof(line), f) == NULL) {\
     bool eof = feof (f);\
     fclose (f);\
     if (eof) return true;\
@@ -771,24 +778,27 @@ static bool config_save (const wchar_t* const path)
 /* -----------------------------------------------------------------------------
 // Tray icon */
 
-static void tray_icon_add (HWND const wnd, UINT const id, UINT const msg)
+#define TRAY_ICON_ID 1
+#define TRAY_ICON_MSG WM_APP
+
+static void tray_icon_add (HWND const wnd)
 {
   NOTIFYICONDATA nid = {
     .hIcon            = LoadIconW (app_instance, L"TRAYICON"),
     .hWnd             = wnd,
-    .uID              = id,
+    .uID              = TRAY_ICON_ID,
     .uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP,
-    .uCallbackMessage = msg
+    .uCallbackMessage = TRAY_ICON_MSG
   };
   wcscpy (nid.szTip, APP_TITLE L" " APP_VERSION);
   Shell_NotifyIconW (NIM_ADD, &nid);
 }
 
-static void tray_icon_remove (HWND const wnd, UINT const id)
+static void tray_icon_remove (HWND const wnd)
 {
   NOTIFYICONDATA nid = {
     .hWnd = wnd,
-    .uID  = id
+    .uID  = TRAY_ICON_ID
   };
   Shell_NotifyIconW (NIM_DELETE, &nid);
 }
@@ -803,13 +813,6 @@ static void tray_icon_remove (HWND const wnd, UINT const id)
 #define ID_ENABLE_BORDER 2001
 #define ID_ENABLE_MENU 2002
 #define ID_DISABLE_COFFEE 2003
-
-/* -------------------------------------------------------------------------- */
-
-void shell_run (const wchar_t* const cmd)
-{
-  ShellExecuteW (NULL, L"open", cmd, NULL, NULL, SW_NORMAL);
-}
 
 static void popup_show (HWND const wnd, HMENU const popup, const POINT* xy)
 {
@@ -911,6 +914,8 @@ static LRESULT CALLBACK wnd_main_proc (HWND const wnd, UINT const msg
 
     /* Obtain current DPI */
     if (is_windows81()) {
+      /* Windows 10 1607: `GetDpiForSystem()`
+      // Windows 10 1803: `GetSystemDpiForProcess()` */
       UINT dpix_out, dpiy_out;
       if (GetDpiForMonitor (MonitorFromWindow (wnd, MONITOR_DEFAULTTONEAREST)
       , MDT_DEFAULT, &dpix_out, &dpiy_out) != S_OK) goto dpi_fallback;
@@ -948,7 +953,7 @@ dpi_fallback:
     ? BST_UNCHECKED : BST_CHECKED, 0);
 
     /* Show tray icon */
-    tray_icon_add (wnd, 1, WM_APP);
+    tray_icon_add (wnd);
 
     /* Trigger resize on initial show
     // to give controls real dimensions */
@@ -996,7 +1001,7 @@ dpi_fallback:
   case WM_DESTROY:
     hotkey_unregister (wnd, &hkey_border);
     hotkey_unregister (wnd, &hkey_menu);
-    tray_icon_remove (wnd, 1);
+    tray_icon_remove (wnd);
     DestroyMenu (menu_popup);
     PostQuitMessage (err_code);
     return 0;
@@ -1099,6 +1104,13 @@ failure:
 int WINAPI wWinMain (HINSTANCE const inst, HINSTANCE const prev
 , wchar_t* const cmd, int const show)
 {
+#ifndef NDEBUG
+  AllocConsole();
+  freopen ("CONIN$", "r", stdin);
+  freopen ("CONOUT$", "w", stdout);
+  freopen ("CONOUT$", "w", stderr);
+#endif
+
   app_instance = inst;
 
   if (CoInitializeEx (NULL, COINIT_APARTMENTTHREADED
