@@ -63,14 +63,13 @@
 
 /* Additional character tests */
 #define iswalphab(c) ((c) >= 'a' && (c) <= 'z')
-#define iswdigit19(c) ((c) >= '1' && (c) <= '9')
-#define iswdigit09(c) iswdigit (c)
+#define iswdigit09(c) ((c) >= '0' && (c) <= '9')
+
+/* -------------------------------------------------------------------------- */
 
 /* BORDERless is DPI-aware! Huh. */
 #define DPIX(v) MulDiv (v, dpix, 72)
 #define DPIY(v) MulDiv (v, dpiy, 72)
-
-/* -------------------------------------------------------------------------- */
 
 #define MDT_DEFAULT 3
 typedef HRESULT WINAPI GetDpiForMonitor_fn (HMONITOR hmonitor, int dpiType, UINT* dpiX, UINT* dpiY);
@@ -437,10 +436,10 @@ static void hotkey_to_str (wchar_t* const str, const struct hotkey* const hkey
   wchar_t* s = str;
   if (conf && hkey->disabled) {wcscpy (s, hkey_str_off); s += cstrlen(hkey_str_off);}
   /* Modifiers */
-  if (hkey->ctrl)  {wcscpy (s, hkey_str_ctrl); s += cstrlen(hkey_str_ctrl);}
-  if (hkey->alt)   {wcscpy (s, hkey_str_alt); s += cstrlen(hkey_str_alt);}
-  if (hkey->shift) {wcscpy (s, hkey_str_shift); s += cstrlen(hkey_str_shift);}
-  if (hkey->win)   {wcscpy (s, hkey_str_win); s += cstrlen(hkey_str_win);}
+  if (hkey->ctrl)  {wcscpy (s, hkey_str_ctrl);  s += cstrlen (hkey_str_ctrl);}
+  if (hkey->alt)   {wcscpy (s, hkey_str_alt);   s += cstrlen (hkey_str_alt);}
+  if (hkey->shift) {wcscpy (s, hkey_str_shift); s += cstrlen (hkey_str_shift);}
+  if (hkey->win)   {wcscpy (s, hkey_str_win);   s += cstrlen (hkey_str_win);}
   /* Actual key */
   if (hkey->code) {
     const UINT key = hkey->code;
@@ -480,7 +479,7 @@ static void hotkey_to_str (wchar_t* const str, const struct hotkey* const hkey
     case VK_DOWN:     hkeystr (hkey_str_down); break;
     case VK_TAB:      hkeystr (hkey_str_tab);  break;
     /* Backspace */
-    case VK_BACK:   hkeystr (hkey_str_bckspc); break;
+    case VK_BACK:     hkeystr (hkey_str_bckspc); break;
     /* Alphanumeric */
     default: *s++ = key; *s = '\0';
     }
@@ -621,14 +620,14 @@ static LRESULT CALLBACK edit_hkey_wnd_proc (HWND const wnd, UINT const msg
 static bool parse_hotkey (const wchar_t** const str, struct hotkey* const hkey
 , int const id)
 {
-#define hkeymod(s, cstr, mod) if (cstrniequ (s, cstr)) {hkey->mod = true; s += cstrlen (cstr); continue;}
+#define hkeymod(s, cstr, mod) if (cstrniequ (s, cstr)) {if (hkey->code) {str[0] = s; return false;} hkey->mod = true; s += cstrlen (cstr); continue;}
 #define hkeycode(s, cstr, vk) if (cstrniequ (s, cstr)) {if (hkey->code) {str[0] = s; return false;} hkey->code = vk; s += cstrlen (cstr); continue;}
-#define hkeynum09(s) if (cstrniequ (s, hkey_str_num)) {if (hkey->code || !iswdigit09 (s[cstrlen (hkey_str_num)])) {str[0] = s; return false;} hkey->code = VK_NUMPAD0 + s[0] - '0'; s += cstrlen (hkey_str_num) + 1; continue;}
-#define hkeychar(s, c, vk) if (s[0] == c) {if (hkey->code) {str[0] = s; return false;} hkey->code = vk; ++s; continue;}
+//#define hkeychar(s, c, vk) if (s[0] == c) {if (hkey->code) {str[0] = s; return false;} hkey->code = vk; ++s; continue;}
 #define hkeychar2(s, c1, c2, vk) if (s[0] == c1 || s[0] == c2) {if (hkey->code) {str[0] = s; return false;} hkey->code = vk; ++s; continue;}
 #define hkeycharaz(s) if (iswalphab (s[0] | 0x20)) {if (hkey->code) {str[0] = s; return false;} hkey->code = s[0] & ~0x20; ++s; continue;}
 #define hkeychar09(s) if (iswdigit09 (s[0])) {if (hkey->code) {str[0] = s; return false;} hkey->code = s[0]; ++s; continue;}
-#define hkeyfunc(s) if ((s[0] | 0x20) == 'f' && iswdigit19 (s[1])) {if (hkey->code) {str[0] = s; return false;} int c = s[1] - '0'; if (iswdigit09 (s[2])) c = c * 10 + s[2] - '0'; if (c > 24) {str[0] = s; return false;} hkey->code = VK_F1 - 1 + c; s += 2 + c > 9; continue;}
+#define hkeynum09(s) if (cstrniequ (s, hkey_str_num)) {if (hkey->code || !iswdigit09 (s[cstrlen (hkey_str_num)])) {str[0] = s; return false;} hkey->code = VK_NUMPAD0 + s[0] - '0'; s += cstrlen (hkey_str_num) + 1; continue;}
+#define hkeyfunc(s) if ((s[0] | 0x20) == 'f' && iswdigit09 (s[1])) {if (hkey->code) {str[0] = s; return false;} int c = s[1] - '0'; if (iswdigit09 (s[2])) c = c * 10 + s[2] - '0'; if (c == 0 || c > 24) {str[0] = s; return false;} hkey->code = VK_F1 - 1 + c; s += 2 + (c > 9); continue;}
   objzero (hkey);
   hkey->id = id;
   const wchar_t* s = str[0];
@@ -639,30 +638,12 @@ static bool parse_hotkey (const wchar_t** const str, struct hotkey* const hkey
     hkeymod (s, hkey_str_alt, alt);
     hkeymod (s, hkey_str_shift, shift);
     hkeymod (s, hkey_str_win, win);
-    /* A..Z & 0..9 */
-    hkeycharaz (s);
-    hkeychar09 (s);
-    /* ;: */hkeychar2 (s, ';', ':', VK_OEM_1);
-    /* /? */hkeychar2 (s, '/', '?', VK_OEM_2);
-    /* `~ */hkeychar2 (s, '`', '~', VK_OEM_3);
-    /* [{ */hkeychar2 (s, '[', '{', VK_OEM_4);
-    /* \| */hkeychar2 (s,'\\', '|', VK_OEM_5);
-    /* ]} */hkeychar2 (s, ']', '}', VK_OEM_6);
-    /* '" */hkeychar2 (s,'\'', '"', VK_OEM_7);
-    /* -_ */hkeychar2 (s, '-', '_', VK_OEM_MINUS);
-    /* =+ */hkeychar2 (s, '=', '+', VK_OEM_PLUS);
-    /* ,< */hkeychar2 (s, ',', '<', VK_OEM_COMMA);
-    /* .> */hkeychar2 (s, '.', '>', VK_OEM_PERIOD);
-    /* Numpad 0..9 */
-    hkeynum09 (s);
     /* Numpad arithmetic operators and decimal separator */
     hkeycode (s, hkey_str_ins, VK_DIVIDE);
     hkeycode (s, hkey_str_mul, VK_MULTIPLY);
     hkeycode (s, hkey_str_sub, VK_SUBTRACT);
     hkeycode (s, hkey_str_add, VK_ADD);
     hkeycode (s, hkey_str_dec, VK_DECIMAL);
-    /* F1..F24 */
-    hkeyfunc (s);
     /* Insert & Delete */
     hkeycode (s, hkey_str_ins, VK_INSERT);
     hkeycode (s, hkey_str_del, VK_DELETE);
@@ -678,6 +659,24 @@ static bool parse_hotkey (const wchar_t** const str, struct hotkey* const hkey
     //hkeycode (s, hkey_str_tab,   VK_TAB);
     /* Backspace */
     hkeycode (s, hkey_str_bckspc, VK_BACK);
+    /* F1..F24 */
+    hkeyfunc (s);
+    /* Numpad 0..9 */
+    hkeynum09 (s);
+    /* A..Z & 0..9 */
+    hkeycharaz (s);
+    hkeychar09 (s);
+    /* ;: */hkeychar2 (s, ';', ':', VK_OEM_1);
+    /* /? */hkeychar2 (s, '/', '?', VK_OEM_2);
+    /* `~ */hkeychar2 (s, '`', '~', VK_OEM_3);
+    /* [{ */hkeychar2 (s, '[', '{', VK_OEM_4);
+    /* \| */hkeychar2 (s,'\\', '|', VK_OEM_5);
+    /* ]} */hkeychar2 (s, ']', '}', VK_OEM_6);
+    /* '" */hkeychar2 (s,'\'', '"', VK_OEM_7);
+    /* -_ */hkeychar2 (s, '-', '_', VK_OEM_MINUS);
+    /* =+ */hkeychar2 (s, '=', '+', VK_OEM_PLUS);
+    /* ,< */hkeychar2 (s, ',', '<', VK_OEM_COMMA);
+    /* .> */hkeychar2 (s, '.', '>', VK_OEM_PERIOD);
     /* Unknown */
     str[0] = s;
     return false;
@@ -688,7 +687,7 @@ static bool parse_hotkey (const wchar_t** const str, struct hotkey* const hkey
 #undef hkeycode
 #undef hkeynum09
 #undef hkeychar2
-#undef hkeychar
+//#undef hkeychar
 #undef hkeycharaz
 #undef hkeychar09
 #undef hkeyfunc
