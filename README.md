@@ -13,9 +13,11 @@ Download the [latest release](https://github.com/ubihazard/borderless/releases).
 
 ## Description
 
-In Windows 10 (8? 8.1? 11?), for whatever reason, some (legacy) fullscreen applications are displayed with ugly border around their frame. This little utility allows to turn these borders off.
+On Windows 10 (8? 8.1? 11?), for whatever reason, some (legacy) fullscreen applications are displayed with ugly borders around their frame. This little utility allows to turn these borders off.
 
-As a bonus feature, it now also has an ability to toggle window menus on and off. This is handy for achieving certain look and feel in applications where fixed menu bar is annoying and/or undesirable, and cannot be turned off via settings: emulators, any dark mode applications with white menu bar stuck in them, etc.
+As a bonus feature, it now also has an ability to toggle window menus on and off. This is handy for achieving uniform look and feel in applications where fixed menu bar is annoying and/or undesirable, and cannot be turned off in settings: emulators, any dark mode (professional) applications with white menu bar stuck in them, etc.
+
+![Menu bar hidden in a dark mode app](/img/example.webp)
 
 *Note that BORDERless can only hide standard Windows menu bars. If an application has a custom menu implemented through some graphical interface toolkit, BORDERless wouldn’t be able to affect it.*
 
@@ -25,17 +27,23 @@ BORDERless now works on active windows and uses Windows global hotkeys API to tr
 
 Make sure the window you are trying to change is activated and press the appropriate key combination for the desired effect. If a certain hotkey isn’t working, then it’s probably already in use by some other app running on your system.
 
-You can configure BORDERless with your own hotkeys:
+It is possible to configure your own hotkeys:
 
-![Configuring BORDERless](/screenshot.png)
+![Configuring BORDERless](/img/configure.png)
 
 (The app can be interacted with from the system tray by clicking on its icon.)
 
-Run `install.bat` from the app folder to create the Start Menu shortcut for easy access to BORDERless.
+Run `install.bat` to create the Start Menu shortcut for easy access to BORDERless.
 
-No bloat: BORDERless is written in pure C / WinAPI and consumes bare minimum of system resources. So you can safely let it running in background.
+No bloat: BORDERless is written in pure C / WinAPI and consumes bare minimum of system resources (around megabyte of RAM). So you can safely let it running in background.
 
 *Note: some windows require you to <kbd>Alt-Tab</kbd> away and back to them after applying the fix in order to actually see the effect. That’s because Windows doesn’t bother to repaint them immediately. Doh.*
+
+### Changing the Way Borders Are Hidden
+
+Borders are hidden by applying window style masks. These masks can be modified by editing the configuration file `config` located in program directory on lines 3-4. In order for this file to appear BORDERless needs to be run at least once.
+
+By default `0xcf0000` and `0x20301` values are used which work best for hiding borders in fullscreen multimedia windows, but might cause graphical UI weirdness in regular windows. For regular windows the values `0xcb0000` and `0x20300` are recommended instead.
 
 ## Support
 
