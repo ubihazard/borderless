@@ -226,7 +226,7 @@ static bool remove_border (const HWND wnd)
 
     arrmove (runner, runner + 1, (border_store_size - (runner + 1 - border_store)));
     void* const newptr = arrnewsize (border_store, --border_store_size);
-    if (newptr != NULL) border_store = newptr;
+    if (newptr != NULL || border_store_size == 0) border_store = newptr;
   }
 
   return true;
@@ -294,7 +294,7 @@ static bool remove_menu (const HWND wnd)
     SetMenu (wnd, runner->menu);
     arrmove (runner, runner + 1, (menu_store_size - (runner + 1 - menu_store)));
     void* const newptr = arrnewsize (menu_store, --menu_store_size);
-    if (newptr != NULL) menu_store = newptr;
+    if (newptr != NULL || menu_store_size == 0) menu_store = newptr;
   }
 
   return true;
