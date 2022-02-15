@@ -41,9 +41,9 @@ No bloat: BORDERless is written in pure C / WinAPI and consumes bare minimum of 
 
 ### Changing the Way Borders Are Hidden
 
-Borders are hidden by applying window style masks. These masks can be modified by editing the configuration file `config` located in program directory on lines 3-4. In order for this file to appear BORDERless needs to be run at least once.
+Borders are hidden by applying window style masks. These masks can be modified by editing the configuration file `config` located in the program directory on lines 3-4. In order for this file to appear BORDERless needs to be run at least once.
 
-By default `0xcf0000` and `0x20301` values are used which work best for hiding borders in fullscreen multimedia windows, but might cause graphical UI weirdness in regular windows. For regular windows the values `0xcb0000` and `0x20300` are recommended instead.
+By default, `0xcf0000` and `0x20301` values are used, which work best for hiding borders in fullscreen multimedia windows, but might cause graphical UI weirdness in regular windows. For regular windows the values `0xcb0000` and `0x20300` are recommended instead.
 
 ## Support
 
