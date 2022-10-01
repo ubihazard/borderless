@@ -7,7 +7,7 @@
   <assemblyIdentity
     name="BORDERless"
     processorArchitecture="*"
-    version="1.0.0.0"
+    version="1.0.1.0"
     type="win32"
   />
   <description>BORDERless</description>
