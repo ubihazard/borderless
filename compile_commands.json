@@ -1,0 +1,5 @@
+[
+  { "directory": ".",
+    "arguments": ["clang", "-c", "-o", "borderless.o", "borderless.c"],
+    "file": "borderless.c" }
+]
