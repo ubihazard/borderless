@@ -1,2 +1,20 @@
 MAINICON ICON "icon\icon.ico"
 TRAYICON ICON "icon\icon16.ico"
+
+1 VERSIONINFO
+FILEVERSION    1,0,1,0
+PRODUCTVERSION 1,0,1,0
+{
+  BLOCK "StringFileInfo"
+  {
+    BLOCK "040904B0"
+    {
+      VALUE "CompanyName",     "Ubihazard\0"
+      VALUE "LegalCopyright",  "© Ubihazard\0"
+      VALUE "ProductName",     "BORDERless\0"
+      VALUE "ProductVersion",  "1.0.1.0\0"
+      VALUE "FileVersion",     "1.0.1.0\0"
+      VALUE "FileDescription", "https://github.com/ubihazard/borderless\0"
+    }
+  }
+}
