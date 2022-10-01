@@ -1,19 +1,19 @@
 /* =============================================================================
 // BORDERless
 //
-// Hide (and restore) window borders and/or menu bar.
+// Toggle window borders and/or menu bar.
 //
-// Some (legacy) applications display horrible ugly borders
-// in full screen mode on Windows 10 (8? 8.1? 11?). The main purpose
-// of this little utility is to toggle these borders off individually
-// for each window using a custom mask and restore back, if needed.
-// The effect can be applied to regular windows too, but results
-// sometimes can be unpredictable, depending on mask used.
+// Some (legacy) applications show horrible ugly borders around window edges
+// in full screen mode on Windows 10 (8? 8.1? 11?). This tiny utility consumes
+// literally no system resources and helps to turn these borders off individually
+// for each affected window and restore them back, if needed.
 //
-// As a bonus feature it can also toggle on/off regular
-// window menu bars. This is handy for achieving uniform
-// look and feel in applications where fixed menu bar
-// is annoying and/or undesirable.
+// You can use this tool on regular (non-fullscreen) windows too, but depending
+// on what kind of window it is, results sometimes can be unpredictable.
+//
+// As a bonus feature BORDERless can also toggle window menu bars.
+// This can be very handy to hide white menu bars in dark mode UI apps
+// or anywhere else where menu bar feels annoying and/or undesirable.
 //
 // https://buymeacoff.ee/ubihazard
 // -------------------------------------------------------------------------- */
@@ -38,6 +38,7 @@
 #endif
 
 #include <Windows.h>
+#include <Shlobj.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -45,9 +46,8 @@
 #include <assert.h>
 #include <wchar.h>
 
-/* -------------------------------------------------------------------------- */
-
-/* C array */
+/* -----------------------------------------------------------------------------
+// C array */
 #define numof(arr) (sizeof(arr) / sizeof(arr[0]))
 #define arrnew(type, num) malloc ((num) * sizeof(type))
 #define arrsize(arr, num) ((num) * sizeof((arr)[0]))
@@ -65,9 +65,8 @@
 #define iswalphab(c) ((c) >= 'a' && (c) <= 'z')
 #define iswdigit09(c) ((c) >= '0' && (c) <= '9')
 
-/* -------------------------------------------------------------------------- */
-
-/* BORDERless is DPI-aware! Huh. */
+/* -----------------------------------------------------------------------------
+// BORDERless is DPI-aware! Huh. */
 #define DPIX(v) MulDiv (v, dpix, 72)
 #define DPIY(v) MulDiv (v, dpiy, 72)
 
@@ -75,16 +74,21 @@
 typedef HRESULT WINAPI GetDpiForMonitor_fn (HMONITOR hmonitor, int dpiType, UINT* dpiX, UINT* dpiY);
 static GetDpiForMonitor_fn* GetDpiForMonitor;
 
-/* -------------------------------------------------------------------------- */
+static int dpix, dpiy;
+static int font_size;
 
+/* -----------------------------------------------------------------------------
+// Application variables */
 #define APP_ID L"1710edcb-f650-41c4-9bbb-e1741e68aadd"
 #define APP_CLASSNAME L"BORDERLESS"
 #define APP_TITLE L"BORDERless"
-#define APP_VERSION L"1.0"
+#define APP_VERSION L"1.0.1"
+#define CONFIG_PATH L".\\config"
+#define DONATE_PATH L"https://www.buymeacoffee.com/ubihazard"
 
 static HINSTANCE app_instance;
-static HMODULE lib_shcore;
 static HANDLE mutex;
+static HMODULE lib_shcore;
 
 static HWND wnd_main;
 static HWND cbox_hkey_hide_border;
@@ -93,34 +97,26 @@ static HWND cbox_hkey_hide_menu;
 static HWND edit_hkey_hide_menu;
 static HWND cbox_coffee;
 static HMENU menu_popup;
-
 static HFONT font_gui;
 static WNDPROC edit_wnd_proc;
 
-static int dpix, dpiy;
-static int font_size;
 static bool first_run;
 static bool show_coffee = true;
 
-/* Default masks for hiding borders */
-static LONG style_mask = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU
-| WS_THICKFRAME;
-static LONG style_ex_mask = WS_EX_CLIENTEDGE | WS_EX_STATICEDGE | WS_EX_WINDOWEDGE
-| WS_EX_DLGMODALFRAME;
+/* Default masks for WinAPI window styles */
+static LONG style_mask = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX
+| WS_SYSMENU | WS_THICKFRAME;
+static LONG style_ex_mask = WS_EX_CLIENTEDGE | WS_EX_STATICEDGE
+| WS_EX_WINDOWEDGE | WS_EX_DLGMODALFRAME;
 
-/* -------------------------------------------------------------------------- */
-
+/* -----------------------------------------------------------------------------
+// Utilities */
 #define parse_mask parse_hex
 
 static inline unsigned long parse_hex (const wchar_t* const str)
 {
   wchar_t** end = (wchar_t**)&str;
   return wcstoul (str, end, 16);
-}
-
-static inline bool get_key_state (UINT const key)
-{
-  return GetKeyState (key) >> 8;
 }
 
 static inline bool is_maximized (const HWND wnd)
@@ -142,7 +138,12 @@ static inline bool is_visible (const HWND wnd)
   return IsWindowVisible (wnd);
 }
 
-static inline void desktop_size (int* const w, int* const h)
+static inline bool get_key_state (UINT const key)
+{
+  return GetKeyState (key) >> 15;
+}
+
+static inline void get_desktop_size (int* const w, int* const h)
 {
   RECT r;
   GetWindowRect (GetDesktopWindow(), &r);
@@ -150,7 +151,7 @@ static inline void desktop_size (int* const w, int* const h)
   h[0] = r.bottom - r.top;
 }
 
-static bool is_windows81 (void)
+static bool is_windows81_plus (void)
 {
   OSVERSIONINFOW info = {.dwOSVersionInfoSize = sizeof(info)};
   GetVersionExW (&info);
@@ -165,7 +166,41 @@ static void shell_run (const wchar_t* const cmd)
 }
 
 /* -----------------------------------------------------------------------------
-// Hide border */
+// Configuration path */
+static wchar_t* conifg_path;
+
+static bool get_config_path (void)
+{
+  if (_waccess (CONFIG_PATH, 0) == 0) {
+    wchar_t* path = _wcsdup (CONFIG_PATH);
+    if (path == NULL) {
+      return false;
+    }
+    conifg_path = path;
+    return true;
+  }
+
+  wchar_t buf[MAX_PATH];
+  wchar_t buf_appdata[MAX_PATH];
+  BOOL ret = SHGetSpecialFolderPathW (NULL, buf_appdata, CSIDL_APPDATA, FALSE);
+  if (!ret) {
+    return false;
+  }
+  _snwprintf (buf, MAX_PATH, L"%s\\" APP_TITLE, buf_appdata);
+  if (_wmkdir (buf) == -1) {
+    return false;
+  }
+  _snwprintf (buf, MAX_PATH, L"%s\\" APP_TITLE L"\\config", buf_appdata);
+  wchar_t* path = _wcsdup (buf);
+  if (path == NULL) {
+    return false;
+  }
+  conifg_path = path;
+  return true;
+}
+
+/* -----------------------------------------------------------------------------
+// Hide borders */
 
 struct border_store_item {
   HWND wnd;
@@ -176,10 +211,14 @@ struct border_store_item {
 static size_t border_store_size;
 static struct border_store_item* border_store;
 
-static void repaint_window (const HWND wnd)
+static void force_repaint_window (const HWND wnd)
 {
   RECT r;
-  if (is_maximized (wnd)) return;
+  if (is_maximized (wnd)) {
+    InvalidateRect (wnd, NULL, TRUE);
+    UpdateWindow (wnd);
+    return;
+  }
   GetWindowRect (wnd, &r);
   MoveWindow (wnd, r.left, r.top, r.right - r.left - 1, r.bottom - r.top - 1, FALSE);
   MoveWindow (wnd, r.left, r.top, r.right - r.left, r.bottom - r.top, TRUE);
@@ -196,13 +235,13 @@ static bool remove_border (const HWND wnd)
 
   /* See if border is to be hidden or restored */
   bool hide = true;
-  struct border_store_item* runner = border_store;
-  while (runner != border_store + border_store_size) {
-    if (runner->wnd == wnd) {
+  struct border_store_item* r = border_store;
+  while (r != border_store + border_store_size) {
+    if (r->wnd == wnd) {
       hide = false;
       break;
     }
-    ++runner;
+    ++r;
   }
 
   if (hide) {
@@ -217,13 +256,13 @@ static bool remove_border (const HWND wnd)
 
     SetWindowLongW (wnd, GWL_EXSTYLE, style_ex & ~style_ex_mask);
     SetWindowLongW (wnd, GWL_STYLE, style & ~style_mask);
-    repaint_window (wnd);
+    force_repaint_window (wnd);
   } else {
-    SetWindowLongW (wnd, GWL_STYLE, runner->style);
-    SetWindowLongW (wnd, GWL_EXSTYLE, runner->style_ex);
-    repaint_window (wnd);
+    SetWindowLongW (wnd, GWL_STYLE, r->style);
+    SetWindowLongW (wnd, GWL_EXSTYLE, r->style_ex);
+    force_repaint_window (wnd);
 
-    arrmove (runner, runner + 1, (border_store_size - (runner + 1 - border_store)));
+    arrmove (r, r + 1, (border_store_size - (r + 1 - border_store)));
     void* const newptr = arrnewsize (border_store, --border_store_size);
     if (newptr != NULL || border_store_size == 0) border_store = newptr;
   }
@@ -268,13 +307,13 @@ static bool remove_menu (const HWND wnd)
 
   /* See if menu is to be hidden or restored */
   bool hide = true;
-  struct menu_store_item* runner = menu_store;
-  while (runner != menu_store + menu_store_size) {
-    if (runner->wnd == wnd) {
+  struct menu_store_item* r = menu_store;
+  while (r != menu_store + menu_store_size) {
+    if (r->wnd == wnd) {
       hide = false;
       break;
     }
-    ++runner;
+    ++r;
   }
 
   if (hide) {
@@ -290,8 +329,8 @@ static bool remove_menu (const HWND wnd)
       SetMenu (wnd, NULL);
     }
   } else {
-    SetMenu (wnd, runner->menu);
-    arrmove (runner, runner + 1, (menu_store_size - (runner + 1 - menu_store)));
+    SetMenu (wnd, r->menu);
+    arrmove (r, r + 1, (menu_store_size - (r + 1 - menu_store)));
     void* const newptr = arrnewsize (menu_store, --menu_store_size);
     if (newptr != NULL || menu_store_size == 0) menu_store = newptr;
   }
@@ -326,8 +365,6 @@ static const wchar_t hkey_str_down[]   = L"Down";
 static const wchar_t hkey_str_tab[]    = L"Tab";
 static const wchar_t hkey_str_bckspc[] = L"Backspace";
 
-/* -------------------------------------------------------------------------- */
-
 struct hotkey {
   /* Currently set state */
   union {
@@ -338,7 +375,7 @@ struct hotkey {
   };
   UINT code;
   /* Last working state. If currently set state fails to register,
-  // this is restored. Is last working state fails as well,
+  // this is restored. If last working state fails as well,
   // the default combination is restored. If even that
   // fails, the hotkey gets disabled. */
   union {
@@ -350,21 +387,21 @@ struct hotkey {
   UINT wcode;
   /* Hotkey registration */
   bool disabled;
-  bool clear;
-  bool set;
-  bool reg;
+  bool clear; // used by UI
+  bool set; // `code` and `mod` are valid or not
+  bool reg; // registered
   int id;
 };
 
 struct hotkey hkey_border;
 struct hotkey hkey_border_def = (struct hotkey){
   .ctrl = false, .alt = true, .shift = false, .win = false,
-  .code = 'B', .id = 0
+  .code = 'B', .id = 1
 };
 struct hotkey hkey_menu;
 struct hotkey hkey_menu_def = (struct hotkey){
   .ctrl = false, .alt = true, .shift = false, .win = false,
-  .code = 'M', .id = 1
+  .code = 'M', .id = 2
 };
 
 static inline void hotkey_save (struct hotkey* const hkey)
@@ -382,7 +419,7 @@ static inline void hotkey_restore (struct hotkey* const hkey)
 static inline bool hotkey_is_set (const struct hotkey* const hkey)
 {
   return (hkey->code >= 0x70 && hkey->code <= 0x87)
-  || (hkey->code && hkey->mod);
+  || (hkey->code != 0 && hkey->mod != 0);
 }
 
 static inline int hotkey_mod_to_int (const struct hotkey* const hkey)
@@ -390,12 +427,6 @@ static inline int hotkey_mod_to_int (const struct hotkey* const hkey)
   return (MOD_CONTROL * hkey->ctrl) | (MOD_ALT * hkey->alt)
   | (MOD_SHIFT * hkey->shift) | (MOD_WIN * hkey->win)
   | MOD_NOREPEAT;
-}
-
-static void hotkey_failed (const HWND wnd)
-{
-  MessageBoxW (wnd, L"Couldn't set the hotkey. Perhaps it is being used by another application?"
-  , APP_TITLE, MB_APPLMODAL | MB_ICONWARNING | MB_OK);
 }
 
 static bool hotkey_unregister (HWND const wnd, struct hotkey* const hkey)
@@ -495,10 +526,16 @@ static void hotkey_to_str (wchar_t* const str, const struct hotkey* const hkey
 #undef hkeystr
 }
 
+static void hotkey_failed (const HWND wnd)
+{
+  MessageBoxW (wnd, L"Couldn't set the hotkey. Check if it is being used by another application."
+  , APP_TITLE, MB_APPLMODAL | MB_ICONWARNING | MB_OK);
+}
+
 /* -----------------------------------------------------------------------------
 // Hotkey edit box control */
 
-static void update_keys (struct hotkey* const hkey, UINT const key
+static void update_hotkey (struct hotkey* const hkey, UINT const key
 , bool const state)
 {
   if (hkey->set) return;
@@ -553,7 +590,7 @@ done:
   hkey->set = hotkey_is_set (hkey);
 }
 
-static void update_hotkey (const HWND wnd, const struct hotkey* const hkey)
+static void update_hotkey_box (const HWND wnd, const struct hotkey* const hkey)
 {
   wchar_t str[256];
   hotkey_to_str (str, hkey, false);
@@ -562,7 +599,7 @@ static void update_hotkey (const HWND wnd, const struct hotkey* const hkey)
 }
 
 static LRESULT CALLBACK edit_hkey_wnd_proc (HWND const wnd, UINT const msg
-, WPARAM const wParam, LPARAM const lParam)
+, WPARAM const wparam, LPARAM const lparam)
 {
   struct hotkey* const hkey = wnd == edit_hkey_hide_border
   ? &hkey_border : &hkey_menu;
@@ -576,32 +613,33 @@ static LRESULT CALLBACK edit_hkey_wnd_proc (HWND const wnd, UINT const msg
       hkey->set = false;
       if (!hotkey_register (wnd_main, hkey)) hotkey_failed (wnd_main);
     } else hotkey_restore (hkey);
-    update_hotkey (wnd, hkey);
+    update_hotkey_box (wnd, hkey);
     break;
   case WM_SYSKEYDOWN:
   case WM_KEYDOWN: {
-    const UINT key = wParam;
+    UINT const key = wparam;
     if (key <= VK_XBUTTON2) return 0;
     if (key == VK_ESCAPE) {
       EnableWindow (wnd, FALSE);
       EnableWindow (wnd, TRUE);
+      SetFocus (wnd_main);
       return 0;
     }
     if (hkey->clear) {
       hkey->clear = false;
       hkey->mod = hkey->code = 0;
     }
-    update_keys (hkey, key, true);
-    update_hotkey (wnd, hkey);
+    update_hotkey (hkey, key, true);
+    update_hotkey_box (wnd, hkey);
     return 0;
   }
   case WM_SYSKEYUP:
   case WM_KEYUP: {
-    const UINT key = wParam;
+    UINT const key = wparam;
     if (key <= VK_XBUTTON2) return 0;
     if (key == VK_ESCAPE) return 0;
-    update_keys (hkey, key, false);
-    update_hotkey (wnd, hkey);
+    update_hotkey (hkey, key, false);
+    update_hotkey_box (wnd, hkey);
     if (hkey->set) {
       /* Combination is set: de-focus edit control.
       // If user wants to re-map the key they
@@ -611,7 +649,7 @@ static LRESULT CALLBACK edit_hkey_wnd_proc (HWND const wnd, UINT const msg
     }
     return 0;
   }}
-  return CallWindowProcW (edit_wnd_proc, wnd, msg, wParam, lParam);
+  return CallWindowProcW (edit_wnd_proc, wnd, msg, wparam, lparam);
 }
 
 /* -----------------------------------------------------------------------------
@@ -693,11 +731,11 @@ static bool parse_hotkey (const wchar_t** const str, struct hotkey* const hkey
 #undef hkeyfunc
 }
 
-static bool read_config (const wchar_t* const path)
+static bool config_read (const wchar_t* const path)
 {
 #define read_line(line) do {\
   if (fgetws (line, numof(line), f) == NULL) {\
-    bool eof = feof (f);\
+    bool const eof = feof (f);\
     fclose (f);\
     if (eof) return true;\
     return false;\
@@ -724,7 +762,7 @@ static bool read_config (const wchar_t* const path)
   if (!parse_hotkey (&l, &hkey_menu, hkey_menu_def.id)
   ) hkey_menu = hkey_menu_def;
 
-  /* Border hide style masks */
+  /* Border style masks */
   read_line (line);
   style_mask = parse_mask (line);
   read_line (line);
@@ -732,7 +770,7 @@ static bool read_config (const wchar_t* const path)
 
   /* Coffee button */
   read_line (line);
-  show_coffee = wcscmp (line, L"true") == 0;
+  show_coffee = _wcsicmp (line, L"true") == 0;
 
   fclose (f);
   return true;
@@ -782,7 +820,7 @@ static bool config_save (const wchar_t* const path)
 
 static void tray_icon_add (HWND const wnd)
 {
-  NOTIFYICONDATA nid = {
+  NOTIFYICONDATA nid  = {
     .hIcon            = LoadIconW (app_instance, L"TRAYICON"),
     .hWnd             = wnd,
     .uID              = TRAY_ICON_ID,
@@ -804,6 +842,10 @@ static void tray_icon_remove (HWND const wnd)
 
 /* -----------------------------------------------------------------------------
 // Popup menu */
+
+#define STR_CONFIGURE L"&Configure..."
+#define STR_DONATE L"&Donate..."
+#define STR_EXIT L"E&xit"
 
 #define ID_CONFIGURE 1001
 #define ID_DONATE 1002
@@ -885,23 +927,23 @@ static LRESULT CALLBACK wnd_main_proc (HWND const wnd, UINT const msg
     SetWindowTextW (cbox_hkey_hide_border, L"Toggle border:");
     edit_hkey_hide_border = CreateWindowW (L"EDIT", L"", WS_BORDER | WS_CHILD | WS_VISIBLE | ES_LEFT | ES_READONLY
     , 0, 0, 0, 0, wnd, NULL, NULL, NULL);
-    edit_wnd_proc = (WNDPROC)SetWindowLongW (edit_hkey_hide_border, GWLP_WNDPROC, (LONG)&edit_hkey_wnd_proc);
+    edit_wnd_proc = (WNDPROC)SetWindowLongPtrW (edit_hkey_hide_border, GWLP_WNDPROC, (LONG_PTR)&edit_hkey_wnd_proc);
     cbox_hkey_hide_menu = CreateWindowW (L"BUTTON", L"", BS_CHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP
     , 0, 0, 0, 16, wnd, (HMENU)ID_ENABLE_MENU, NULL, NULL);
     SetWindowTextW (cbox_hkey_hide_menu, L"Toggle menu:");
     edit_hkey_hide_menu = CreateWindowW (L"EDIT", L"", WS_BORDER | WS_CHILD | WS_VISIBLE | ES_LEFT | ES_READONLY
     , 0, 0, 0, 0, wnd, NULL, NULL, NULL);
-    SetWindowLongW (edit_hkey_hide_menu, GWLP_WNDPROC, (LONG)&edit_hkey_wnd_proc);
+    SetWindowLongPtrW (edit_hkey_hide_menu, GWLP_WNDPROC, (LONG_PTR)&edit_hkey_wnd_proc);
     cbox_coffee = CreateWindowW (L"BUTTON", L"", BS_CHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP
     , 0, 0, 0, 0, wnd, (HMENU)ID_DISABLE_COFFEE, NULL, NULL);
     SetWindowTextW (cbox_coffee, L"Hide donation menu entry");
 
     /* Create popup menu for tray icon */
     menu_popup = CreatePopupMenu();
-    AppendMenuW (menu_popup, MF_STRING, ID_CONFIGURE, L"&Configure...");
-    if (show_coffee) AppendMenuW (menu_popup, MF_STRING, ID_DONATE, L"Co&ffee...");
+    AppendMenuW (menu_popup, MF_STRING, ID_CONFIGURE, STR_CONFIGURE);
+    if (show_coffee) AppendMenuW (menu_popup, MF_STRING, ID_DONATE, STR_DONATE);
     AppendMenuW (menu_popup, MF_SEPARATOR, 0, NULL);
-    AppendMenuW (menu_popup, MF_STRING, ID_EXIT, L"E&xit");
+    AppendMenuW (menu_popup, MF_STRING, ID_EXIT, STR_EXIT);
     SetMenuDefaultItem (menu_popup, ID_CONFIGURE, FALSE);
 
     if (!cbox_hkey_hide_border || !edit_hkey_hide_border
@@ -912,7 +954,7 @@ static LRESULT CALLBACK wnd_main_proc (HWND const wnd, UINT const msg
     }
 
     /* Obtain current DPI */
-    if (is_windows81()) {
+    if (is_windows81_plus()) {
       /* Windows 10 1607: `GetDpiForSystem()`
       // Windows 10 1803: `GetSystemDpiForProcess()` */
       UINT dpix_out, dpiy_out;
@@ -944,10 +986,10 @@ dpi_fallback:
     // permanently disabled. */
     SendMessageW (cbox_hkey_hide_border, BM_SETCHECK, hkey_border.disabled
     ? BST_UNCHECKED : BST_CHECKED, 0);
-    update_hotkey (edit_hkey_hide_border, &hkey_border);
+    update_hotkey_box (edit_hkey_hide_border, &hkey_border);
     SendMessageW (cbox_hkey_hide_menu, BM_SETCHECK, hkey_menu.disabled
     ? BST_UNCHECKED : BST_CHECKED, 0);
-    update_hotkey (edit_hkey_hide_menu, &hkey_menu);
+    update_hotkey_box (edit_hkey_hide_menu, &hkey_menu);
     SendMessageW (cbox_coffee, BM_SETCHECK, show_coffee
     ? BST_UNCHECKED : BST_CHECKED, 0);
 
@@ -957,7 +999,7 @@ dpi_fallback:
     /* Trigger resize on initial show
     // to give controls real dimensions */
     int desktopWidth, desktopHeight;
-    desktop_size (&desktopWidth, &desktopHeight);
+    get_desktop_size (&desktopWidth, &desktopHeight);
     MoveWindow (wnd, desktopWidth - DPIX(240), desktopHeight / 2
     , DPIX(200), DPIY(140), TRUE);
 
@@ -1016,7 +1058,7 @@ dpi_fallback:
       SetForegroundWindow (wnd);
       break;
     case ID_DONATE:
-      shell_run (L"https://www.buymeacoffee.com/ubihazard");
+      shell_run (DONATE_PATH);
       break;
     case ID_EXIT:
       SendMessageW (wnd, WM_CLOSE, 0, 0);
@@ -1060,11 +1102,21 @@ failure:
       } else {
         show_coffee = true;
         SendMessageW (cbox_coffee, BM_SETCHECK, BST_UNCHECKED, 0);
-        InsertMenuW (menu_popup, 1, MF_STRING | MF_BYPOSITION, ID_DONATE, L"Co&ffee...");
+        InsertMenuW (menu_popup, 1, MF_STRING | MF_BYPOSITION, ID_DONATE, L"&Donate...");
       }
       break;
     }
     return 0;
+  case WM_KEYDOWN: {
+    UINT const key = wparam;
+    if (key == VK_ESCAPE) {
+      if (is_visible (wnd)) {
+        ShowWindow (wnd, SW_HIDE);
+      }
+      return 0;
+    }
+    break;
+  }
   /* Tray icon */
   case WM_APP:
     switch (lparam) {
@@ -1112,7 +1164,6 @@ int WINAPI wWinMain (HINSTANCE const inst, HINSTANCE const prev
 #endif
 
   app_instance = inst;
-
   if (CoInitializeEx (NULL, COINIT_APARTMENTTHREADED
   | COINIT_DISABLE_OLE1DDE) != S_OK) return EXIT_FAILURE;
 
@@ -1129,17 +1180,24 @@ failure_early:
 
   /* Since we want to support Windows 7,
   // have to load some routines at runtime */
-  lib_shcore = LoadLibraryW (L"shcore");
-  GetDpiForMonitor_fn* const GetDpiForMonitor = (GetDpiForMonitor_fn*)GetProcAddress (lib_shcore, "GetDpiForMonitor");
-  if (GetDpiForMonitor == NULL) goto failure_early;
+  if (is_windows81_plus()) {
+    lib_shcore = LoadLibraryW (L"shcore");
+    if (lib_shcore == NULL) goto failure_early;
+    GetDpiForMonitor = (GetDpiForMonitor_fn*)GetProcAddress (lib_shcore, "GetDpiForMonitor");
+    if (GetDpiForMonitor == NULL) {
+      FreeLibrary (lib_shcore);
+      goto failure_early;
+    }
+  }
 
   /* Read configuration */
-  first_run = !read_config (L".\\config");
+  hkey_border = hkey_border_def;
+  hkey_menu = hkey_menu_def;
 
-  if (first_run) {
-    hkey_border = hkey_border_def;
-    hkey_menu = hkey_menu_def;
+  if (!get_config_path()) {
+    goto failure_early;
   }
+  first_run = !config_read (conifg_path);
 
   hotkey_save (&hkey_border);
   hotkey_save (&hkey_menu);
@@ -1159,7 +1217,9 @@ failure_early:
     .lpszMenuName  = NULL,
     .lpszClassName = APP_CLASSNAME
   };
-  RegisterClassExW (&wclx);
+  if (RegisterClassExW (&wclx) == 0) {
+    goto failure;
+  }
 
   CreateWindowW (APP_CLASSNAME, APP_TITLE
   , WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | (WS_VISIBLE * first_run)
@@ -1174,13 +1234,22 @@ failure_early:
     // other than making this hack. */
     if ((msg.message == WM_KEYDOWN && msg.wParam == VK_ESCAPE)
     ||  !IsDialogMessageW (wnd_main, &msg)) {
-      TranslateMessage (&msg);
-      DispatchMessageW (&msg);
+      if ((msg.hwnd != edit_hkey_hide_border
+      && msg.hwnd != edit_hkey_hide_menu)
+      && msg.message == WM_KEYDOWN
+      && msg.wParam == VK_ESCAPE) {
+        if (is_visible (wnd_main)) {
+          ShowWindow (wnd_main, SW_HIDE);
+        }
+      } else {
+        TranslateMessage (&msg);
+        DispatchMessageW (&msg);
+      }
     }
   }
 
-  /* Create configuration file */
-  config_save (L".\\config");
+  /* Write configuration */
+  config_save (conifg_path);
 
   /* Free remaining resources */
 failure:
