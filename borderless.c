@@ -924,7 +924,7 @@ static LRESULT CALLBACK wnd_main_proc (HWND const wnd, UINT const msg
     /* Create controls */
     cbox_hkey_hide_border = CreateWindowW (L"BUTTON", L"", BS_CHECKBOX | WS_CHILD | WS_VISIBLE | WS_TABSTOP
     , 0, 0, 0, 0, wnd, (HMENU)ID_ENABLE_BORDER, NULL, NULL);
-    SetWindowTextW (cbox_hkey_hide_border, L"Toggle border:");
+    SetWindowTextW (cbox_hkey_hide_border, L"Toggle borders:");
     edit_hkey_hide_border = CreateWindowW (L"EDIT", L"", WS_BORDER | WS_CHILD | WS_VISIBLE | ES_LEFT | ES_READONLY
     , 0, 0, 0, 0, wnd, NULL, NULL, NULL);
     edit_wnd_proc = (WNDPROC)SetWindowLongPtrW (edit_hkey_hide_border, GWLP_WNDPROC, (LONG_PTR)&edit_hkey_wnd_proc);
