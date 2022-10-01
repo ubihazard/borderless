@@ -1107,6 +1107,7 @@ failure:
       break;
     }
     return 0;
+  /* Hide window */
   case WM_KEYDOWN: {
     UINT const key = wparam;
     if (key == VK_ESCAPE) {
